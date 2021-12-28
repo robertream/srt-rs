@@ -21,6 +21,14 @@ impl TryFrom<&str> for SocketAddress {
     type Error = SocketAddressParseError;
 
     fn try_from(address: &str) -> Result<Self, Self::Error> {
+        Self::from_str(address)
+    }
+}
+
+impl FromStr for SocketAddress {
+    type Err = SocketAddressParseError;
+
+    fn from_str(address: &str) -> Result<Self, Self::Err> {
         let mut split = address.split(':');
         match (split.next(), split.next(), split.next()) {
             (Some(""), Some(port), None) => Ok(Self {
