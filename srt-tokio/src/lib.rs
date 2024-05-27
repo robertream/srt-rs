@@ -57,6 +57,6 @@ pub use srt_protocol::access;
 pub use srt_protocol::options;
 
 pub use crate::{
-    listener::{ConnectionRequest, ListenerStatistics, SrtIncoming, SrtListener},
+    listener::{ConnectionRequest, ListenerStatistics, SrtListener},
     socket::{SocketStatistics, SrtSocket, SrtSocketBuilder},
 };

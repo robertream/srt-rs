@@ -406,8 +406,7 @@ impl SocketData {
 
             let (mut s, r) = mpsc::channel(1024);
             let task = TOKIO_RUNTIME.spawn(async move {
-                let incoming_stream = incoming.incoming();
-                while let Some(req) = incoming_stream.next().await {
+                while let Some(req) = incoming.next().await {
                     let new_sock = insert_socket(SocketData::Accepting(None));
 
                     // get latest opts--callback may be changed at any point

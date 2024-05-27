@@ -1,10 +1,11 @@
+use futures::Stream;
 use std::{convert::TryInto, io, time::Duration};
-
 use tokio::net::UdpSocket;
 
 use crate::options::*;
+use crate::ConnectionRequest;
 
-use super::{SrtIncoming, SrtListener};
+use super::SrtListener;
 
 #[derive(Default)]
 pub struct SrtListenerBuilder(SocketOptions, Option<UdpSocket>);
@@ -93,11 +94,11 @@ impl SrtListenerBuilder {
     pub async fn bind(
         self,
         local: impl TryInto<SocketAddress>,
-    ) -> Result<(SrtListener, SrtIncoming), io::Error> {
+    ) -> Result<(SrtListener, impl Stream<Item = ConnectionRequest>), io::Error> {
         let options = ListenerOptions::with(local, self.0)?;
         match self.1 {
-            None => SrtListener::bind(options).await,
-            Some(socket) => SrtListener::bind_with_socket(options, socket).await,
+            None => SrtListener::internal_bind(options).await,
+            Some(socket) => SrtListener::internal_bind_with_socket(options, socket).await,
         }
     }
 }

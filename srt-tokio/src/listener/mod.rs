@@ -24,22 +24,47 @@ pub struct SrtListener {
     task: JoinHandle<()>,
 }
 
-#[derive(Debug)]
-pub struct SrtIncoming {
-    request_receiver: mpsc::Receiver<ConnectionRequest>,
-}
+type SrtIncoming = mpsc::Receiver<ConnectionRequest>;
 
 impl SrtListener {
     pub fn builder() -> SrtListenerBuilder {
         SrtListenerBuilder::default()
     }
 
-    pub async fn bind(options: Valid<ListenerOptions>) -> Result<(Self, SrtIncoming), io::Error> {
-        let socket = bind_socket(&options.socket).await?;
-        Self::bind_with_socket(options, socket).await
+    pub async fn bind(
+        options: Valid<ListenerOptions>,
+    ) -> Result<(Self, impl Stream<Item = ConnectionRequest>), io::Error> {
+        Self::internal_bind(options).await
     }
 
     pub async fn bind_with_socket(
+        options: Valid<ListenerOptions>,
+        socket: UdpSocket,
+    ) -> Result<(Self, impl Stream<Item = ConnectionRequest>), io::Error> {
+        Self::internal_bind_with_socket(options, socket).await
+    }
+
+    pub fn settings(&self) -> &ConnInitSettings {
+        &self.settings
+    }
+
+    pub fn statistics(&mut self) -> &mut (impl Stream<Item = ListenerStatistics> + Clone) {
+        &mut self.statistics_receiver
+    }
+
+    pub async fn close(&mut self) {
+        let _ = self.close_req.take().unwrap().send(());
+        (&mut self.task).await.unwrap();
+    }
+
+    pub async fn internal_bind(
+        options: Valid<ListenerOptions>,
+    ) -> Result<(Self, SrtIncoming), io::Error> {
+        let socket = bind_socket(&options.socket).await?;
+        Self::internal_bind_with_socket(options, socket).await
+    }
+
+    async fn internal_bind_with_socket(
         options: Valid<ListenerOptions>,
         socket: UdpSocket,
     ) -> Result<(Self, SrtIncoming), io::Error> {
@@ -69,27 +94,8 @@ impl SrtListener {
                 close_req: Some(close_req),
                 task,
             },
-            SrtIncoming { request_receiver },
+            request_receiver,
         ))
-    }
-
-    pub fn settings(&self) -> &ConnInitSettings {
-        &self.settings
-    }
-
-    pub fn statistics(&mut self) -> &mut (impl Stream<Item = ListenerStatistics> + Clone) {
-        &mut self.statistics_receiver
-    }
-
-    pub async fn close(&mut self) {
-        let _ = self.close_req.take().unwrap().send(());
-        (&mut self.task).await.unwrap();
-    }
-}
-
-impl SrtIncoming {
-    pub fn incoming(&mut self) -> &mut impl Stream<Item = ConnectionRequest> {
-        &mut self.request_receiver
     }
 }
 
@@ -126,11 +132,11 @@ mod tests {
         let (finished_send, finished_recv) = oneshot::channel();
 
         let listener = tokio::spawn(async {
-            let (mut server, mut incoming) =
+            let (mut server, incoming) =
                 SrtListener::builder().bind("127.0.0.1:4001").await.unwrap();
             let mut statistics = server.statistics().clone().fuse();
 
-            let mut incoming = incoming.incoming().fuse();
+            let mut incoming = incoming.fuse();
             let mut fused_finish = finished_recv.fuse();
             loop {
                 let selection = futures::select!(
@@ -211,14 +217,14 @@ mod tests {
         let (finished_send, finished_recv) = oneshot::channel();
 
         let listener = tokio::spawn(async {
-            let (mut server, mut incoming) = SrtListener::builder()
+            let (mut server, incoming) = SrtListener::builder()
                 .encryption(0, "super secret passcode")
                 .bind("127.0.0.1:4002")
                 .await
                 .unwrap();
             let mut statistics = server.statistics().clone().fuse();
 
-            let mut incoming = incoming.incoming().fuse();
+            let mut incoming = incoming.fuse();
             let mut fused_finish = finished_recv.fuse();
             loop {
                 let selection = futures::select!(
@@ -312,7 +318,7 @@ mod tests {
                 .unwrap();
 
             info!("SRT Multiplex Server is listening on port: {}", port);
-            while let Some(request) = incoming.incoming().next().await {
+            while let Some(request) = incoming.next().await {
                 let mut srt_socket = request.accept(None).await.unwrap();
 
                 tokio::spawn(async move {

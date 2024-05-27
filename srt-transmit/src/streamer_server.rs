@@ -6,13 +6,13 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures::{channel::oneshot, select, sink::Sink, FutureExt, SinkExt, StreamExt};
+use futures::{channel::oneshot, select, sink::Sink, FutureExt, SinkExt, Stream, StreamExt};
 use log::warn;
 use tokio::sync::broadcast::{self, error::*};
 
 use srt_tokio::{
     options::{ListenerOptions, Valid},
-    SrtIncoming, SrtListener, SrtSocket,
+    ConnectionRequest, SrtListener, SrtSocket,
 };
 
 // Even though it is never directly used, oneshot::Sender<()> is not dead code. It is used to
@@ -43,12 +43,12 @@ impl StreamerServer {
 
     pub async fn run_receive_loop(
         _listener: SrtListener,
-        mut incoming: SrtIncoming,
+        incoming: impl Stream<Item = ConnectionRequest> + Unpin,
         cancel: oneshot::Receiver<()>,
         broadcast_sender: broadcast::Sender<(Instant, Bytes)>,
         _broadcast_receiver: broadcast::Receiver<(Instant, Bytes)>,
     ) {
-        let mut incoming = incoming.incoming().fuse();
+        let mut incoming = incoming.fuse();
         let mut cancel = cancel.fuse();
         while let Some(request) = select!(
                     _ = cancel => return,

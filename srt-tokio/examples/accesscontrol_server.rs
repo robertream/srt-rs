@@ -37,7 +37,7 @@ async fn main() -> io::Result<()> {
 
     let (_server, mut incoming) = SrtListener::builder().bind(3333).await.unwrap();
 
-    while let Some(request) = incoming.incoming().next().await {
+    while let Some(request) = incoming.next().await {
         let stream_id = request.stream_id().cloned();
         match access_control(stream_id.as_ref(), request.remote()) {
             Ok(()) => {

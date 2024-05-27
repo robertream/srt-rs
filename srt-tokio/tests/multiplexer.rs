@@ -14,10 +14,13 @@ async fn multiplexer() -> Result<()> {
     let (finished_send, finished_recv) = oneshot::channel();
 
     let listener = tokio::spawn(async {
-        let (_server, mut incoming) = SrtListener::builder().bind(2000).await.unwrap();
+        let (_server, incoming) = SrtListener::builder().bind(2000).await.unwrap();
 
+        let mut incoming = incoming.fuse();
         let mut fused_finish = finished_recv.fuse();
-        while let Some(request) = futures::select!(res = incoming.incoming().next().fuse() => res, _ = fused_finish => None)
+        while let Some(request) = futures::select!(
+            res = incoming.next() => res,
+            _ = fused_finish => None)
         {
             let mut sender = request.accept(None).await.unwrap();
             let mut stream =

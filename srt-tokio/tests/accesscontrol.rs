@@ -52,7 +52,7 @@ async fn streamid() -> io::Result<()> {
 
     let (mut server, mut incoming) = SrtListener::builder().bind(2000).await.unwrap();
     let listener = tokio::spawn(async move {
-        while let Some(request) = incoming.incoming().next().await {
+        while let Some(request) = incoming.next().await {
             tokio::spawn(async move {
                 let mut sender = match accept(request.stream_id()) {
                     Ok(mut ap) => request.accept(ap.take_key_settings()).await.unwrap(),
@@ -122,7 +122,7 @@ async fn set_password() {
     let (mut server, mut incoming) = SrtListener::builder().bind(2001).await.unwrap();
 
     let listener = tokio::spawn(async move {
-        while let Some(request) = incoming.incoming().next().await {
+        while let Some(request) = incoming.next().await {
             let passphrase = request.stream_id().unwrap().as_str().into();
 
             if let Ok(mut sender) = request
